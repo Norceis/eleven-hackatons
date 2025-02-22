@@ -1,1 +1,3 @@
-elevenlabs
+jupyter
+dotenv
+fal-client
