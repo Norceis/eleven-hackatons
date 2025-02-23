@@ -1,19 +1,20 @@
 import json
-import time
 import os
 
+import streamlit as st
 import fal_client
 from elevenlabs.client import ElevenLabs
 from elevenlabs import VoiceSettings
-import streamlit as st
-from streamlit import session_state as ss
 from streamlit_pdf_viewer import pdf_viewer
 from dotenv import load_dotenv
 
-load_dotenv(dotenv_path='/home/ikolasa/Projects/eleven-hackatons/.env')
+load_dotenv(dotenv_path='.env', override=True)
 
-SPEECH_FPATH = 'speech_recording.mp3'
-IMPROVED_SPEECH_FPATH = 'speech_improved.mp3'
+AUDIO_DPATH = 'audio'
+os.makedirs(AUDIO_DPATH, exist_ok=True)
+
+SPEECH_FPATH = os.path.join(AUDIO_DPATH, 'speech_recording.mp3')
+IMPROVED_SPEECH_FPATH = os.path.join(AUDIO_DPATH, 'speech_improved.mp3')
 
 TEMPLATE_UNIQUE_KEYNAMES = {
     "goal",
@@ -27,11 +28,9 @@ TEMPLATE_UNIQUE_KEYNAMES_NESTED = {
     "comment"
 }
 
-
 CLIENT_ELEVEN = ElevenLabs(
-    api_key='sk_8a685af1bfce270f039376f3374a64caafadfb478514be87'  #os.getenv('ELEVENLABS_API_KEY')
+    api_key=os.getenv('ELEVENLABS_API_KEY')
 )
-print(os.getenv('ELEVENLABS_API_KEY'))
 
 
 def on_queue_update(update):
@@ -39,13 +38,13 @@ def on_queue_update(update):
         for log in update.logs:
            print(log["message"])
 
+
 def overwrite_prompt_instructions(instructions):
     llm_instructions = (
     f"Please give me feedback about my speech and how I can improve it. Respond in JSON format with the following keys: goal, tone, audience, general_opinion."
     f"The goal of the presentation is {instructions["goal"]}. "
     f"The tone of the presentation should be {instructions["tone"]}. "
     f"The audience for the presentation is {instructions["audience"]}. "
-    #f"Additional information: {data['additional information']}. "
     f"The template for your response should be as follows:"
     f"{{"
     f"  \"goal\": {{"
@@ -60,9 +59,6 @@ def overwrite_prompt_instructions(instructions):
     f"    \"achieved\": true/false,"
     f"    \"comment\": \"\""
     f"  }},"
-    #f"  \"additional_information\": {{"
-    #f"    \"comment\": \"\""
-    #f"  }},"
     f"  \"general_opinion\": {{"
     f"    \"comment\": \"\""
     f"  }}"
@@ -73,36 +69,31 @@ def overwrite_prompt_instructions(instructions):
 
 
 def generate_and_validate_speech_json(llm_instructions):
-    while True:
-        unique_keynames=set()
-        unique_keynames_nested=set()
-        # for i in tqdm(range(100)):
-        result = fal_client.subscribe(
-            "fal-ai/any-llm",
-            arguments={
-                "prompt": llm_instructions
-            },
-            with_logs=True,
-            on_queue_update=on_queue_update,
-        )
+    with st.spinner(text="Painting the grass green..."):
+        while True:
+            unique_keynames=set()
+            unique_keynames_nested=set()
+            result = fal_client.subscribe(
+                "fal-ai/any-llm",
+                arguments={
+                    "prompt": llm_instructions
+                },
+                with_logs=True,
+                on_queue_update=on_queue_update,
+            )
 
-        try:
-            json_string = result['output'][7:-4]
+            try:
+                json_string = result['output'][7:-4]
 
-            json_object = json.loads(json_string)
-            # print(json_object)
-            unique_keynames.update(json_object.keys())
-            for key in json_object.keys():
-                if isinstance(json_object[key], dict):
-                    unique_keynames_nested.update(json_object[key].keys())
-            # print(unique_keynames)
-            # print(TEMPLATE_UNIQUE_KEYNAMES)
-            # print(unique_keynames_nested)
-            # print(TEMPLATE_UNIQUE_KEYNAMES_NESTED)
-            if unique_keynames == TEMPLATE_UNIQUE_KEYNAMES and unique_keynames_nested == TEMPLATE_UNIQUE_KEYNAMES_NESTED:
-                break
-        except json.JSONDecodeError:
-            continue
+                json_object = json.loads(json_string)
+                unique_keynames.update(json_object.keys())
+                for key in json_object.keys():
+                    if isinstance(json_object[key], dict):
+                        unique_keynames_nested.update(json_object[key].keys())
+                if unique_keynames == TEMPLATE_UNIQUE_KEYNAMES and unique_keynames_nested == TEMPLATE_UNIQUE_KEYNAMES_NESTED:
+                    break
+            except json.JSONDecodeError:
+                continue
 
     return json_object
 
@@ -119,14 +110,15 @@ def create_refine_prompt(json_object, instructions):
 
 
 def refine_speech(refining_prompt):
-    result = fal_client.subscribe(
-        "fal-ai/any-llm",
-        arguments={
-            "prompt": refining_prompt
-        },
-        with_logs=True,
-        on_queue_update=on_queue_update,
-    )
+    with st.spinner(text="Looking at the sun..."):
+        result = fal_client.subscribe(
+            "fal-ai/any-llm",
+            arguments={
+                "prompt": refining_prompt
+            },
+            with_logs=True,
+            on_queue_update=on_queue_update,
+        )
     return result['output'][7:-4]
 
 
@@ -134,28 +126,30 @@ def add_voice_clone(input_file_path, name):
     """Adds your voice clone to the
     list of available voices"""
     with open(input_file_path, "rb") as audio_file:
-        response = CLIENT_ELEVEN.voices.add(
-            name=name,
-            remove_background_noise=True,
-            files=[(input_file_path, audio_file, 'mp3')]
-        )
+        with st.spinner(text="Swimming through molass..."):
+            response = CLIENT_ELEVEN.voices.add(
+                name=name,
+                remove_background_noise=True,
+                files=[(input_file_path, audio_file, 'mp3')]
+            )
 
         return response.voice_id
 
 
 def text_to_speech(text, voice_id):
-    response = CLIENT_ELEVEN.text_to_speech.convert(
-        voice_id=voice_id,
-        output_format="mp3_22050_32",
-        text=text,
-        model_id="eleven_turbo_v2_5",
-        voice_settings=VoiceSettings(
-            stability=0.0,
-            similarity_boost=1.0,
-            style=0.0,
-            use_speaker_boost=True,
-        ),
-    )
+    with st.spinner(text="Counting sheep..."):
+        response = CLIENT_ELEVEN.text_to_speech.convert(
+            voice_id=voice_id,
+            output_format="mp3_22050_32",
+            text=text,
+            model_id="eleven_turbo_v2_5",
+            voice_settings=VoiceSettings(
+                stability=0.0,
+                similarity_boost=1.0,
+                style=0.0,
+                use_speaker_boost=True,
+            ),
+        )
 
     # Writing the audio to a file
     with open(IMPROVED_SPEECH_FPATH, "wb") as f:
@@ -163,20 +157,20 @@ def text_to_speech(text, voice_id):
             if chunk:
                 f.write(chunk)
 
-    print(f"{IMPROVED_SPEECH_FPATH}: A new audio file was saved successfully!")
-
     # Return the path of the saved audio file
     return IMPROVED_SPEECH_FPATH
 
 
 # Initialize session state keys
-if 'pdf_ref' not in ss:
-    ss.pdf_ref = None
-if 'page' not in ss:
-    ss.page = "setup"
+if 'pdf_ref' not in st.session_state:
+    st.session_state.pdf_ref = None
+if 'page' not in st.session_state:
+    st.session_state.page = "setup"
 
 def setup_page():
-    st.title("SPEECH 2.0")
+    st.markdown("<h1 style='text-align: center;'>Speech Coach</h1>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>Provide the details about your speech</h3>", unsafe_allow_html=True)
+    st.markdown("<h3 style='text-align: center;'>It will help to give you feedback</h3>", unsafe_allow_html=True)
 
     # Define options for tone and audience
     tone_options = ["Formal", "Casual", "Persuasive", "Informative", "Inspirational"]
@@ -203,13 +197,11 @@ def setup_page():
     st.session_state["tone"] = tone
 
     # Display audience options as a segmented control
-    st.write("### Audience Type:")
+    st.write("### Audience:")
     audience = st.segmented_control(
         "Audiences", audience_options, default=st.session_state["audience"], selection_mode="multi", label_visibility='hidden'
     )
     st.session_state["audience"] = audience
-
-    #print(data)
 
     # Proceed to the next page
     if st.button("Next"):
@@ -220,20 +212,20 @@ def setup_page():
             st.error("Please fill out all fields.")
 
 def upload_pdf_page():
-    st.title("UPLOAD YOUR SLIDES")
+    st.markdown("<h1 style='text-align: center;'>Upload slides and speech</h1>", unsafe_allow_html=True)
 
     # Access the uploaded ref via a key.
     uploaded_pdf = st.file_uploader("Upload PDF file", type=('pdf'), key='pdf', label_visibility='hidden')
 
     if uploaded_pdf:
-        ss.pdf_ref = uploaded_pdf  # Store the uploaded PDF in session state
+        st.session_state.pdf_ref = uploaded_pdf  # Store the uploaded PDF in session state
         st.session_state["page"] = "slides"  # Move to the slides page
         st.rerun()  # Force rerun to immediately navigate to the next page
 
 def slides_page():
-    if ss.pdf_ref:
+    if st.session_state.pdf_ref:
         # Display the uploaded PDF
-        binary_data = ss.pdf_ref.getvalue()
+        binary_data = st.session_state.pdf_ref.getvalue()
         pdf_viewer(input=binary_data, width='100%', height=500)
 
         # Audio recording
@@ -256,13 +248,14 @@ def slides_page():
                 # voice cloning
                 voice_id = add_voice_clone(SPEECH_FPATH, name='TEST_CLONE')
 
-                audio_url = fal_client.upload_file(SPEECH_FPATH)
-                handler = fal_client.submit(
-                    "fal-ai/whisper",
-                    arguments={
-                        "audio_url": audio_url
-                    },
-                )
+                with st.spinner(text="Catching wind..."):
+                    audio_url = fal_client.upload_file(SPEECH_FPATH)
+                    handler = fal_client.submit(
+                        "fal-ai/whisper",
+                        arguments={
+                            "audio_url": audio_url
+                        },
+                    )
 
                 request_id = handler.request_id
                 result = fal_client.result("fal-ai/whisper", request_id)
@@ -283,7 +276,6 @@ def slides_page():
                 refined_speech = refine_speech(refining_prompt)
 
                 # generate refined speech with your voice
-                print(refine_speech)
                 text_to_speech(refined_speech, voice_id)
 
 
@@ -296,7 +288,7 @@ def feedback_page():
     feedback = st.session_state["feedback"] #{'test': {'achieved': True}}
 
     # Convert feedback data to a table format
-    st.title("Speech Feedback Overview")
+    st.markdown("<h1 style='text-align: center;'>Speech feedback</h1>", unsafe_allow_html=True)
 
     # Display feedback in a nicely formatted way
     for key, value in feedback.items():
@@ -309,7 +301,7 @@ def feedback_page():
     st.write(feedback['general_opinion']['comment'])
 
     # Load and play the improved file
-    st.write("### Listen to your improved speech")
+    st.write("### Listen to your refined speech")
 
     try:
         with open(IMPROVED_SPEECH_FPATH, "rb") as f:
@@ -318,10 +310,6 @@ def feedback_page():
     except FileNotFoundError:
         st.error("The cloned voice speech file was not found. Please ensure the file exists.")
 
-    if st.button("Restart"):
-        st.session_state.clear()
-        st.session_state["page"] = "setup"
-        st.rerun()  # Force rerun to immediately navigate to the setup page'''
 
 # Page routing
 if st.session_state["page"] == "setup":
