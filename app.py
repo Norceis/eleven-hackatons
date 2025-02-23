@@ -170,7 +170,6 @@ if 'page' not in st.session_state:
 def setup_page():
     st.markdown("<h1 style='text-align: center;'>Speech Coach</h1>", unsafe_allow_html=True)
     st.markdown("<h3 style='text-align: center;'>Provide the details about your speech</h3>", unsafe_allow_html=True)
-    st.markdown("<h3 style='text-align: center;'>It will help to give you feedback</h3>", unsafe_allow_html=True)
 
     # Define options for tone and audience
     tone_options = ["Formal", "Casual", "Persuasive", "Informative", "Inspirational"]
