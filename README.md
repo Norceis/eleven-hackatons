@@ -29,5 +29,5 @@ Features that will be added in the future:
 - Analysis of pronounciation of the speech
 - Analysis of the content of the PDF slides and whether they fit the speech
 - Ability to have a conversation with the agents that will further refine the output speech
-
-
+- Multiple language support
+- Analysis of body language from a video
