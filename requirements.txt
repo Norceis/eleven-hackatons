@@ -1,5 +1,6 @@
 jupyter
 dotenv
+elevenlabs
 fal-client
 streamlit
 streamlit_pdf_viewer
