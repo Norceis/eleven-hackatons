@@ -25,7 +25,7 @@ The app offers:
 
 ## Future work 
 Features that will be added in the future:
-- Expand on the current pool of customizable settings
+- Expansion of the current pool of customizable settings
 - Analysis of pronunciation of the speech
 - Analysis of the content of the PDF slides and whether they fit the speech
 - Ability to have a conversation with the agents that will further refine the output speech
